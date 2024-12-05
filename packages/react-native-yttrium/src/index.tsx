@@ -16,7 +16,13 @@ const Yttrium = NativeModules.Yttrium
         },
       }
     );
+
 console.log('react-native-yttrium loaded', NativeModules.Yttrium);
+
+(global as any).yttrium = {
+  route: route,
+  status: status,
+};
 
 type RoutePrams = {
   projectId: string;
