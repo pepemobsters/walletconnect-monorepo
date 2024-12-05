@@ -1,27 +1,149 @@
 import YttriumWrapper
 
+
 @objc(Yttrium)
 class Yttrium: NSObject {
-
-  @objc(multiply:withB:withResolver:withRejecter:)
-  func multiply(a: Float, b: Float, resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock) -> Void {
-    resolve(a*b)
-  }
-
-  @objc(getAddress:rejecter:)
-  func getAddress(resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-        
-      let object = YttriumWrapper.Endpoint.init(baseURL: "https://")
-      // log object in Xcode logs (open pressing Shift+Cmd+C)
-      print(object)
-      
-      let address = "12345"
-
-    if !address.isEmpty { // Example: handle success case
-        resolve(address)
-    } else { // Example: handle failure case
-        let error = NSError(domain: "YourModuleName", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to retrieve address"])
-        reject("error_code", "Failed to retrieve address", error)
+  
+  @objc
+  func checkStatus(_ params: Any, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    print("checkStatus called with", params )
+    if let dict = params as? [String: Any],
+       let projectId = dict["projectId"] as? String,
+       let orchestrationId = dict["orchestrationId"] as? String {
+      let client = ChainAbstractionClient.init(projectId: projectId)
+      Task {
+        do {
+          let statusResponse = try await client.status(orchestrationId: orchestrationId)
+          
+          switch statusResponse {
+          case let .completed(statusResponseCompleted):
+            print("status response completed", statusResponseCompleted)
+          case let .error(statusResponseError):
+            print("status response error", statusResponseError)
+            let responseDict: [String: Any] = [
+                "createdAt": statusResponseError.createdAt,
+                "error": statusResponseError.error,
+                "type": "error"
+            ]
+            resolve(responseDict)
+          case let .pending(statusResponsePending):
+            print("status response pending", statusResponsePending)
+            let responseDict: [String: Any] = [
+              "createdAt": statusResponsePending.createdAt,
+              "checkIn": statusResponsePending.checkIn,
+              "type": "pending"
+            ]
+            resolve(responseDict)
+          }
+        } catch {
+          print("Error occurred: \(error)")
+          print(error)
+          reject("checkStatus err", "checkStatus", error)
+        }
+      }
     }
+  }
+  
+  func availableResponseToDictionary(_ response: YttriumWrapper.RouteResponseAvailable) -> [String: Any] {
+    return [
+      "orchestrationId": response.orchestrationId,
+      "transactions": response.transactions.map { transaction in
+        return [
+          "from": transaction.from,
+          "to": transaction.to,
+          "value": transaction.value,
+          "gas": transaction.gas,
+          "data": transaction.data,
+          "nonce": transaction.nonce,
+          "chainId": transaction.chainId,
+          "gasPrice": transaction.gasPrice,
+          "maxFeePerGas": transaction.maxFeePerGas,
+          "maxPriorityFeePerGas": transaction.maxPriorityFeePerGas,
+        ]
+      },
+      "metadata": [
+        "fundingFrom": response.metadata.fundingFrom.map { funding in
+          return [
+            "chainId": funding.chainId,
+            "tokenContract": funding.tokenContract,
+            "symbol": funding.symbol,
+            "amount": funding.amount,
+          ]
+        }
+      ],
+      "checkIn": response.metadata.checkIn,
+    ]
+  }
+  
+  @objc
+  func checkRoute(_ params: Any, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    print("checkRoute called with", params)
+    if let dict = params as? [String: Any],
+       let transactionData = dict["transaction"] as? [String: Any],
+       let from = transactionData["from"] as? FfiAddress,
+       let chainId = transactionData["chainId"] as? String,
+       let data = transactionData["data"] as? FfiBytes,
+       let gasPrice = transactionData["gasPrice"] as? String,
+       let gas = transactionData["gas"] as? Ffiu64,
+       let value = transactionData["value"] as? Ffiu256,
+       let to = transactionData["to"] as? FfiAddress,
+       let maxFeePerGas = transactionData["maxFeePerGas"] as? Ffiu256,
+       let maxPriorityFeePerGas = transactionData["maxPriorityFeePerGas"] as? Ffiu256,
+       let nonce = transactionData["nonce"] as? Ffiu64,
+       let projectId = dict["projectId"] as? String {
+      
+      
+      let client = ChainAbstractionClient.init(projectId: projectId)
+      print("created client, checking route...")
+      Task {
+        do {
+          let transaction = InitTransaction.init(from: from, to: to, value: value, gas: gas, gasPrice: gasPrice, data: data, nonce: nonce, maxFeePerGas: maxFeePerGas, maxPriorityFeePerGas: maxPriorityFeePerGas, chainId: chainId)
+          
+          let routeResponseSuccess = try await client.route(transaction: transaction)
+          print("result", routeResponseSuccess)
+          
+          switch routeResponseSuccess {
+          case let .success(routeResponse):
+            switch routeResponse {
+            case let .available(availableResponse):
+              let responseDict = availableResponseToDictionary(availableResponse)
+              resolve(responseDict)
+            case .notRequired(_):
+              print("not required")
+              resolve("not_required")
+            }
+          case let .error(routeResponse):
+            switch routeResponse.error {
+            case BridgingError.insufficientFunds:
+              let responseDict: [String: Any] = [
+                "error": true,
+                "type": "insufficientFunds"
+              ]
+              resolve(responseDict)
+            case BridgingError.insufficientGasFunds:
+              let responseDict: [String: Any] = [
+                "error": true,
+                "type": "insufficientGasFunds"
+              ]
+              resolve(responseDict)
+            case BridgingError.noRoutesAvailable:
+              let responseDict: [String: Any] = [
+                "error": true,
+                "type": "noRoutesAvailable"
+              ]
+              resolve(responseDict)
+            }
+            print(routeResponse)
+            print(routeResponse.error)
+          }
+          //          resolve(result)
+        } catch {
+          print("Error occurred: \(error)")
+          print(error)
+          reject("yttrium err", "yttrium_err", error)
+        }
+      }
+    }
+    
   }
 }
