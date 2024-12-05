@@ -18,12 +18,17 @@ class Yttrium: NSObject {
           switch statusResponse {
           case let .completed(statusResponseCompleted):
             print("status response completed", statusResponseCompleted)
+            let responseDict: [String: Any] = [
+              "createdAt": statusResponseCompleted.createdAt,
+              "status": "completed"
+            ]
+            resolve(responseDict)
           case let .error(statusResponseError):
             print("status response error", statusResponseError)
             let responseDict: [String: Any] = [
                 "createdAt": statusResponseError.createdAt,
-                "error": statusResponseError.error,
-                "type": "error"
+                "reason": statusResponseError.error,
+                "status": "error"
             ]
             resolve(responseDict)
           case let .pending(statusResponsePending):
@@ -31,7 +36,7 @@ class Yttrium: NSObject {
             let responseDict: [String: Any] = [
               "createdAt": statusResponsePending.createdAt,
               "checkIn": statusResponsePending.checkIn,
-              "type": "pending"
+              "status": "pending"
             ]
             resolve(responseDict)
           }
@@ -107,29 +112,29 @@ class Yttrium: NSObject {
             switch routeResponse {
             case let .available(availableResponse):
               let responseDict = availableResponseToDictionary(availableResponse)
-              resolve(responseDict)
+              resolve(["status": "available", "data": responseDict])
             case .notRequired(_):
               print("not required")
-              resolve("not_required")
+              resolve(["status": "not_required"])
             }
           case let .error(routeResponse):
             switch routeResponse.error {
             case BridgingError.insufficientFunds:
               let responseDict: [String: Any] = [
-                "error": true,
-                "type": "insufficientFunds"
+                "status": "error",
+                "reason": "insufficientFunds"
               ]
               resolve(responseDict)
             case BridgingError.insufficientGasFunds:
               let responseDict: [String: Any] = [
-                "error": true,
-                "type": "insufficientGasFunds"
+                "status": "error",
+                "reason": "insufficientGasFunds"
               ]
               resolve(responseDict)
             case BridgingError.noRoutesAvailable:
               let responseDict: [String: Any] = [
-                "error": true,
-                "type": "noRoutesAvailable"
+                "status": true,
+                "reason": "noRoutesAvailable"
               ]
               resolve(responseDict)
             }
