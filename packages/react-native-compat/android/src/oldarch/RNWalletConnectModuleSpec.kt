@@ -3,11 +3,14 @@ package com.walletconnect.reactnativemodule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReadableMap
 
 abstract class RNWalletConnectModuleSpec internal constructor(context: ReactApplicationContext) :
   ReactContextBaseJavaModule(context) {
 
   abstract fun isAppInstalled(packageName: String?, promise: Promise);
+  abstract fun checkRoute(params: ReadableMap, promise: Promise);
+  abstract fun checkStatus(params: ReadableMap, promise: Promise);
   protected abstract fun getTypedExportedConstants(): Map<String, String>
 
   override fun getConstants(): Map<String, String> {
