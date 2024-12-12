@@ -136,9 +136,7 @@ export class Engine extends IEngine {
   };
 
   private requestQueueDelay = ONE_SECOND;
-
   private expectedPairingMethodMap: Map<string, string[]> = new Map();
-
   // Ephemeral (in-memory) map to store recently deleted items
   private recentlyDeletedMap = new Map<
     string | number,
@@ -693,12 +691,14 @@ export class Engine extends IEngine {
     await this.isValidEmit(params);
     const { topic, event, chainId } = params;
     const relayRpcId = getBigIntRpcId().toString() as any;
+    const clientRpcId = payloadId();
     await this.sendRequest({
       topic,
       method: "wc_sessionEvent",
       params: { event, chainId },
       throwOnFailedPublish: true,
       relayRpcId,
+      clientRpcId,
     });
   };
 
@@ -1731,6 +1731,7 @@ export class Engine extends IEngine {
     const { topic, payload, transportType } = event;
     const record = await this.client.core.history.get(topic, payload.id);
     const resMethod = record.request.method as JsonRpcTypes.WcMethod;
+
     switch (resMethod) {
       case "wc_sessionPropose":
         return this.onSessionProposeResponse(topic, payload, transportType);
@@ -1786,6 +1787,12 @@ export class Engine extends IEngine {
     const { params, id } = payload;
     try {
       const event = this.client.core.eventClient.getEvent({ topic });
+
+      if (this.client.events.listenerCount("session_proposal") === 0) {
+        console.warn("No listener for session_proposal event");
+        event?.setError(EVENT_CLIENT_PAIRING_ERRORS.proposal_listener_not_found);
+      }
+
       this.isValidConnect({ ...payload.params });
       const expiryTimestamp =
         params.expiryTimestamp || calcExpiry(ENGINE_RPC_OPTS.wc_sessionPropose.req.ttl);
@@ -1799,10 +1806,6 @@ export class Engine extends IEngine {
         metadata: proposal.proposer.metadata,
       });
 
-      if (this.client.events.listenerCount("session_proposal") === 0) {
-        console.warn("No listener for session_proposal event");
-        event?.setError(EVENT_CLIENT_PAIRING_ERRORS.proposal_listener_not_found);
-      }
       event?.addTrace(EVENT_CLIENT_PAIRING_TRACES.emit_session_proposal);
 
       this.client.events.emit("session_proposal", { id, params: proposal, verifyContext });
@@ -1948,7 +1951,7 @@ export class Engine extends IEngine {
       const lastSessionUpdateId = MemoryStore.get<number>(memoryKey);
 
       if (lastSessionUpdateId && this.isRequestOutOfSync(lastSessionUpdateId, id)) {
-        this.client.logger.info(`Discarding out of sync request - ${id}`);
+        this.client.logger.warn(`Discarding out of sync request - ${id}`);
         this.sendError({ id, topic, error: getSdkError("INVALID_UPDATE_REQUEST") });
         return;
       }
@@ -1981,7 +1984,7 @@ export class Engine extends IEngine {
   // compares the timestamp of the last processed request with the current request
   // client <-> client rpc ID is timestamp + 3 random digits
   private isRequestOutOfSync = (lastId: number, currentId: number) => {
-    return parseInt(currentId.toString().slice(0, -3)) <= parseInt(lastId.toString().slice(0, -3));
+    return currentId.toString().slice(0, -3) < lastId.toString().slice(0, -3);
   };
 
   private onSessionUpdateResponse: EnginePrivate["onSessionUpdateResponse"] = (_topic, payload) => {

@@ -48,6 +48,24 @@ export function isReactNative(): boolean {
   return !getDocument() && !!getNavigator() && navigator.product === REACT_NATIVE_PRODUCT;
 }
 
+export function isAndroid(): boolean {
+  return (
+    isReactNative() &&
+    typeof global !== "undefined" &&
+    typeof (global as any)?.Platform !== "undefined" &&
+    (global as any)?.Platform.OS === "android"
+  );
+}
+
+export function isIos(): boolean {
+  return (
+    isReactNative() &&
+    typeof global !== "undefined" &&
+    typeof (global as any)?.Platform !== "undefined" &&
+    (global as any)?.Platform.OS === "ios"
+  );
+}
+
 export function isBrowser(): boolean {
   return !isNode() && !!getNavigator() && !!getDocument();
 }
@@ -59,7 +77,7 @@ export function getEnvironment(): string {
   return ENV_MAP.unknown;
 }
 
-export function getBundleId(): string | undefined {
+export function getAppId(): string | undefined {
   try {
     if (
       isReactNative() &&
@@ -153,6 +171,7 @@ export function formatRelayRpcUrl({
   projectId,
   useOnCloseEvent,
   bundleId,
+  packageName,
 }: RelayerTypes.RpcUrlParams) {
   const splitUrl = relayUrl.split("?");
   const ua = formatUA(protocol, version, sdkVersion);
@@ -161,7 +180,8 @@ export function formatRelayRpcUrl({
     ua,
     projectId,
     useOnCloseEvent: useOnCloseEvent || undefined,
-    origin: bundleId || undefined,
+    packageName: packageName || undefined,
+    bundleId: bundleId || undefined,
   };
   const queryString = appendToQueryString(splitUrl[1] || "", params);
   return splitUrl[0] + "?" + queryString;
@@ -253,11 +273,17 @@ export function createDelayedPromise<T>(
   let cacheResolve: undefined | ((value: T | PromiseLike<T>) => void);
   let cacheReject: undefined | ((value?: ErrorResponse) => void);
   let cacheTimeout: undefined | NodeJS.Timeout;
+  let result: Promise<Awaited<T>> | Promise<T> | undefined;
 
   const done = () =>
     new Promise<T>((promiseResolve, promiseReject) => {
+      if (result) {
+        return promiseResolve(result);
+      }
       cacheTimeout = setTimeout(() => {
-        promiseReject(new Error(expireErrorMessage));
+        const err = new Error(expireErrorMessage);
+        result = Promise.reject(err);
+        promiseReject(err);
       }, timeout);
       cacheResolve = promiseResolve;
       cacheReject = promiseReject;
@@ -266,6 +292,7 @@ export function createDelayedPromise<T>(
     if (cacheTimeout && cacheResolve) {
       clearTimeout(cacheTimeout);
       cacheResolve(value as T);
+      result = Promise.resolve(value) as Promise<Awaited<T>>;
     }
   };
   const reject = (value?: ErrorResponse) => {
@@ -474,4 +501,8 @@ export function toBase64(input: string, removePadding = false): string {
 
 export function fromBase64(encodedString: string): string {
   return Buffer.from(encodedString, "base64").toString("utf-8");
+}
+
+export function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

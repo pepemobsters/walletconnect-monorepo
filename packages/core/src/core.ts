@@ -75,6 +75,7 @@ export class Core extends ICore {
 
     const loggerOptions = getDefaultLoggerOptions({
       level: typeof opts?.logger === "string" && opts.logger ? opts.logger : CORE_DEFAULT.logger,
+      name: CORE_CONTEXT,
     });
 
     const { logger, chunkLoggerController } = generatePlatformLogger({
