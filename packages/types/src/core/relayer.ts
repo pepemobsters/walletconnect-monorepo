@@ -63,6 +63,7 @@ export declare namespace RelayerTypes {
     projectId?: string;
     useOnCloseEvent?: boolean;
     bundleId?: string;
+    packageName?: string;
   }
 }
 

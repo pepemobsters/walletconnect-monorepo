@@ -6,6 +6,7 @@ import {
   pino,
 } from "@walletconnect/logger";
 import { SignClientTypes, ISignClient, ISignClientEvents, EngineTypes } from "@walletconnect/types";
+import { ONE_SECOND, toMiliseconds } from "@walletconnect/time";
 import { getAppMetadata } from "@walletconnect/utils";
 import { EventEmitter } from "events";
 import { SIGN_CLIENT_DEFAULT, SIGN_CLIENT_PROTOCOL, SIGN_CLIENT_VERSION } from "./constants";
@@ -252,7 +253,9 @@ export class SignClient extends ISignClient {
       await this.auth.init();
       await this.engine.init();
       this.logger.info(`SignClient Initialization Success`);
-      this.engine.processRelayMessageCache();
+      setTimeout(() => {
+        this.engine.processRelayMessageCache();
+      }, toMiliseconds(ONE_SECOND));
     } catch (error: any) {
       this.logger.info(`SignClient Initialization Failure`);
       this.logger.error(error.message);

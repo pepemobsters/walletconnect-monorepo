@@ -22,6 +22,10 @@ const SDK_VERSION = "2.0.0-rc.1";
 
 const AUTH = "auth.jwt.example";
 
+const PACKAGE_NAME = "com.example.app";
+
+const BUNDLE_ID = "com.example.app.bundle";
+
 const EXPECTED_RPC_URL_1 =
   RELAY_URL + `?auth=${AUTH}&ua=${encodeURIComponent(formatUA(PROTOCOL, VERSION, SDK_VERSION))}`;
 
@@ -36,6 +40,18 @@ const EXPECTED_RPC_URL_3 =
   `?auth=${AUTH}&projectId=${PROJECT_ID}&ua=${encodeURIComponent(
     formatUA(PROTOCOL, VERSION, SDK_VERSION),
   )}&useOnCloseEvent=true`;
+
+const EXPECTED_RPC_URL_4 =
+  RELAY_URL +
+  `?auth=${AUTH}&packageName=${PACKAGE_NAME}&projectId=${PROJECT_ID}&ua=${encodeURIComponent(
+    formatUA(PROTOCOL, VERSION, SDK_VERSION),
+  )}`;
+
+const EXPECTED_RPC_URL_5 =
+  RELAY_URL +
+  `?auth=${AUTH}&bundleId=${BUNDLE_ID}&projectId=${PROJECT_ID}&ua=${encodeURIComponent(
+    formatUA(PROTOCOL, VERSION, SDK_VERSION),
+  )}`;
 
 const SEVEN_DAYS_IN_SECONDS = 604800;
 
@@ -71,6 +87,28 @@ describe("Misc", () => {
         useOnCloseEvent: true,
       }),
     ).to.eql(EXPECTED_RPC_URL_3);
+    expect(
+      formatRelayRpcUrl({
+        protocol: PROTOCOL,
+        version: VERSION,
+        sdkVersion: SDK_VERSION,
+        relayUrl: RELAY_URL,
+        projectId: PROJECT_ID,
+        auth: AUTH,
+        packageName: PACKAGE_NAME,
+      }),
+    ).to.eql(EXPECTED_RPC_URL_4);
+    expect(
+      formatRelayRpcUrl({
+        protocol: PROTOCOL,
+        version: VERSION,
+        sdkVersion: SDK_VERSION,
+        relayUrl: RELAY_URL,
+        projectId: PROJECT_ID,
+        auth: AUTH,
+        bundleId: BUNDLE_ID,
+      }),
+    ).to.eql(EXPECTED_RPC_URL_5);
   });
   it("hasOverlap", () => {
     expect(hasOverlap([], [])).to.be.true;
