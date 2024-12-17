@@ -71,7 +71,7 @@ class RNWalletConnectModuleModule internal constructor(context: ReactApplication
         var projectId = params.getString("projectId") as String 
         val transactionMap = params.getMap("transaction")
         var client = ChainAbstractionClient(projectId)
-
+        
         if (transactionMap != null) {
           // Extract values from the nested transaction map
           val chainId = transactionMap.getString("chainId") ?: ""
@@ -93,11 +93,18 @@ class RNWalletConnectModuleModule internal constructor(context: ReactApplication
             is RouteResponse.Success -> {
               when (result.v1) {
                 is RouteResponseSuccess.Available -> {
+                  val availableResult = (result.v1 as RouteResponseSuccess.Available).v1
+                  val transaction = Transaction(from, to, value, gas, txData, nonce, chainId, gasPrice, maxFeePerGas, maxPriorityFeePerGas)
+                  val uiFields = client.getRouteUiFields(availableResult, transaction, Currency.USD)
                   val gson = Gson()
-                  val jsonElement: JsonElement = gson.toJsonTree((result.v1 as RouteResponseSuccess.Available).v1)
+                  val routesJson: JsonElement = gson.toJsonTree(availableResult)
+                  val routesDetailsJson: JsonElement = gson.toJsonTree(uiFields)
+                  val dataObject = JsonObject()
+                  dataObject.add("routes", routesJson)
+                  dataObject.add("routesDetails", routesDetailsJson)
                   val response = JsonObject()
                   response.addProperty("status", "available")
-                  response.add("data", jsonElement)
+                  response.add("data", dataObject)
                   promise.resolve(gson.toJson(response))
                 }
                 is RouteResponseSuccess.NotRequired -> {
