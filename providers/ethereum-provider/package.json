@@ -59,7 +59,6 @@
     "ethereum-test-network": "0.1.6",
     "ethers": "5.6.9",
     "uint8arrays": "3.1.0",
-    "viem": "^2.21.55",
     "web3": "1.7.5"
   }
 }
