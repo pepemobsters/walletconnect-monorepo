@@ -78,42 +78,7 @@ if (typeof global?.Application === "undefined") {
 }
 
 // iOS uses Yttrium, Android uses RNWalletConnectModule
-const yttrium = NativeModules.Yttrium || NativeModules.RNWalletConnectModule;
-
-export async function checkRoute(params) {
-  if (!yttrium) {
-    throw new Error("RN Yttrium is not correctly linked");
-  }
-
-  const result = await yttrium?.checkRoute(params);
-  return parseResult(result);
-}
-
-export async function checkStatus(params) {
-  if (!yttrium) {
-    throw new Error("RN Yttrium is not correctly linked");
-  }
-
-  const result = await yttrium?.checkStatus(params);
-  return parseResult(result);
-}
-
-function parseResult(result) {
-  if (typeof result === "undefined") return;
-
-  // iOS returns parsed JSON object, while Android returns stringified
-  if (typeof result === "string") {
-    try {
-      return JSON.parse(result);
-    } catch (e) {}
-  }
-  return result;
-}
-
-global.yttrium = {
-  checkRoute,
-  checkStatus,
-};
+global.yttrium = NativeModules.Yttrium || NativeModules.RNWalletConnectModule;
 
 // eslint-disable-next-line no-console
 console.log("RN yttrium", global.yttrium);
