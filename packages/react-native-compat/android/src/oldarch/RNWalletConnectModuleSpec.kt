@@ -9,8 +9,12 @@ abstract class RNWalletConnectModuleSpec internal constructor(context: ReactAppl
   ReactContextBaseJavaModule(context) {
 
   abstract fun isAppInstalled(packageName: String?, promise: Promise);
-  abstract fun checkRoute(params: ReadableMap, promise: Promise);
-  abstract fun checkStatus(params: ReadableMap, promise: Promise);
+  abstract fun prepare(params: ReadableMap, promise: Promise);
+  abstract fun status(params: ReadableMap, promise: Promise);
+  abstract fun getBridgeDetails(params: ReadableMap, promise: Promise);
+  abstract fun estimateFees(params: ReadableMap, promise: Promise);
+  abstract fun getERC20Balance(params: ReadableMap, promise: Promise);
+
   protected abstract fun getTypedExportedConstants(): Map<String, String>
 
   override fun getConstants(): Map<String, String> {

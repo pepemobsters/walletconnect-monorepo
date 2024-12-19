@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import uniffi.uniffi_yttrium.ChainAbstractionClient
 import kotlinx.coroutines.*
 import com.facebook.react.bridge.ReadableMap
-import uniffi.uniffi_yttrium.InitTransaction
 import uniffi.uniffi_yttrium.*
 import uniffi.yttrium.*
 import com.google.gson.Gson
@@ -62,10 +61,12 @@ class RNWalletConnectModuleModule internal constructor(context: ReactApplication
 
 // ------------------------------ Yttrium Chain Abstraction ------------------------------
 
+  private var availableResponseMap: MutableMap<String, RouteResponseAvailable> = mutableMapOf()
+
+
   @ReactMethod
-  override fun checkRoute(params: ReadableMap, promise: Promise){
+  override fun prepare(params: ReadableMap, promise: Promise){
     System.out.println("checkRoute: Hello from YttriumModule")
-  
     GlobalScope.launch(Dispatchers.Main) {
       try {
         var projectId = params.getString("projectId") as String 
@@ -77,34 +78,23 @@ class RNWalletConnectModuleModule internal constructor(context: ReactApplication
           val chainId = transactionMap.getString("chainId") ?: ""
           val txData = transactionMap.getString("data") ?: ""
           val from = transactionMap.getString("from") ?: ""
-          val gas = transactionMap.getString("gas") ?: "0"
-          val gasPrice = transactionMap.getString("gasPrice") ?: "0"
-          val maxFeePerGas = transactionMap.getString("maxFeePerGas") ?: "0"
-          val maxPriorityFeePerGas = transactionMap.getString("maxPriorityFeePerGas") ?: "0"
-          val nonce = transactionMap.getString("nonce") ?: "0"
           val to = transactionMap.getString("to") ?: ""
           val value = transactionMap.getString("value") ?: "0"
-
-          val tx = InitTransaction(from, to, value, gas, gasPrice, txData, nonce, maxFeePerGas, maxPriorityFeePerGas, chainId)
-          val result = client.route(tx)
+          val tx = InitialTransaction(chainId, from, to, value, txData)
+          val result = client.prepare(tx)
           System.out.println("checkRoute: result: ")
           System.out.println(result)
           when (result) {
-            is RouteResponse.Success -> {
+            is PrepareResponse.Success -> {
               when (result.v1) {
                 is RouteResponseSuccess.Available -> {
                   val availableResult = (result.v1 as RouteResponseSuccess.Available).v1
-                  val transaction = Transaction(from, to, value, gas, txData, nonce, chainId, gasPrice, maxFeePerGas, maxPriorityFeePerGas)
-                  val uiFields = client.getRouteUiFields(availableResult, transaction, Currency.USD)
+                  availableResponseMap[availableResult.orchestrationId] = availableResult
                   val gson = Gson()
                   val routesJson: JsonElement = gson.toJsonTree(availableResult)
-                  val routesDetailsJson: JsonElement = gson.toJsonTree(uiFields)
-                  val dataObject = JsonObject()
-                  dataObject.add("routes", routesJson)
-                  dataObject.add("routesDetails", routesDetailsJson)
                   val response = JsonObject()
                   response.addProperty("status", "available")
-                  response.add("data", dataObject)
+                  response.add("data", routesJson)
                   promise.resolve(gson.toJson(response))
                 }
                 is RouteResponseSuccess.NotRequired -> {
@@ -115,7 +105,7 @@ class RNWalletConnectModuleModule internal constructor(context: ReactApplication
                 }
               }
             }
-            is RouteResponse.Error -> {
+            is PrepareResponse.Error -> {
               System.out.println(result.v1.error.toString())
               when (result.v1.error.toString()) {
                 "NO_ROUTES_AVAILABLE" -> {
@@ -153,7 +143,7 @@ class RNWalletConnectModuleModule internal constructor(context: ReactApplication
   }
 
   @ReactMethod
-  override fun checkStatus(params: ReadableMap, promise: Promise){
+  override fun status(params: ReadableMap, promise: Promise){
     System.out.println("checkStatus: Hello from YttriumModule address")
 
     GlobalScope.launch(Dispatchers.Main) {
@@ -164,48 +154,118 @@ class RNWalletConnectModuleModule internal constructor(context: ReactApplication
         var client = ChainAbstractionClient(projectId)
 
         when (val result = client.status(orchestrationId)) {
-            is StatusResponse.Completed -> {
-                when(result.v1) {
-                  is StatusResponseCompleted -> {
-                    val response = JsonObject()
-                    response.addProperty("status", "completed")
-                    response.addProperty("createdAt", result.v1.createdAt.toString())
-                    val gson = Gson()
-                    promise.resolve(gson.toJson(response))
-                  }
-                }
-            }
-            is StatusResponse.Error -> {
-              when(result.v1) {
-                is StatusResponseError -> {
-                  val response = JsonObject()
-                  response.addProperty("status", "error")
-                  response.addProperty("createdAt", result.v1.createdAt.toString())
-                  response.addProperty("reason", result.v1.error.toString())
-                  val gson = Gson()
-                  promise.resolve(gson.toJson(response))
-                }
-              }
-            }
-            is StatusResponse.Pending -> {
-              when(result.v1) {
-                is StatusResponsePending -> {
-                  val response = JsonObject()
-                  response.addProperty("status", "pending")
-                  response.addProperty("createdAt", result.v1.createdAt.toString())
-                  response.addProperty("checkIn", result.v1.checkIn.toString())
-                  val gson = Gson()
-                  promise.resolve(gson.toJson(response))
-                }
+          is StatusResponse.Completed -> {
+            when (result.v1) {
+              is StatusResponseCompleted -> {
+                val response = JsonObject()
+                response.addProperty("status", "completed")
+                response.addProperty("createdAt", result.v1.createdAt.toString())
+                val gson = Gson()
+                promise.resolve(gson.toJson(response))
               }
             }
           }
+
+          is StatusResponse.Error -> {
+            when (result.v1) {
+              is StatusResponseError -> {
+                val response = JsonObject()
+                response.addProperty("status", "error")
+                response.addProperty("createdAt", result.v1.createdAt.toString())
+                response.addProperty("reason", result.v1.error.toString())
+                val gson = Gson()
+                promise.resolve(gson.toJson(response))
+              }
+            }
+          }
+
+          is StatusResponse.Pending -> {
+            when (result.v1) {
+              is StatusResponsePending -> {
+                val response = JsonObject()
+                response.addProperty("status", "pending")
+                response.addProperty("createdAt", result.v1.createdAt.toString())
+                response.addProperty("checkIn", result.v1.checkIn.toString())
+                val gson = Gson()
+                promise.resolve(gson.toJson(response))
+              }
+            }
+          }
+        }
       } catch (e: Exception) {
         // In case of an error, reject the promise
         promise.reject("ERROR", "Yttrium checkStatus Error:" + e.message, e)
       }
     }
   }
+
+  @ReactMethod
+  override fun getBridgeDetails(params: ReadableMap, promise: Promise){
+    System.out.println("getFulfilmentDetails: Hello from YttriumModule address")
+
+    GlobalScope.launch(Dispatchers.Main) {
+      try {
+
+        val projectId = params.getString("projectId") as String
+        val orchestrationId = params.getString("orchestrationId") as String
+        val client = ChainAbstractionClient(projectId)
+
+        val availableResult = availableResponseMap[orchestrationId] as RouteResponseAvailable
+        val uiFields = client.getUiFields(availableResult, Currency.USD)
+        val gson = Gson()
+        val resultJson: JsonElement = gson.toJsonTree(uiFields)
+        promise.resolve(gson.toJson(resultJson))
+      } catch (e: Exception) {
+        // In case of an error, reject the promise
+        promise.reject("ERROR", "Yttrium getFulfilmentDetails Error:" + e.message, e)
+      }
+    }
+  }
+
+  @ReactMethod
+  override fun getERC20Balance(params: ReadableMap, promise: Promise){
+    System.out.println("getERC20Balance: Hello from YttriumModule address")
+
+    GlobalScope.launch(Dispatchers.Main) {
+      try {
+
+        val projectId = params.getString("projectId") as String
+        val tokenAddress = params.getString("tokenAddress") as String
+        val ownerAddress = params.getString("ownerAddress") as String
+        val chainId = params.getString("chainId") as String
+        val client = ChainAbstractionClient(projectId)
+        val result = client.erc20TokenBalance(chainId, tokenAddress, ownerAddress)
+        val gson = Gson()
+        val resultJson: JsonElement = gson.toJsonTree(result)
+        promise.resolve(gson.toJson(resultJson))
+      } catch (e: Exception) {
+        // In case of an error, reject the promise
+        promise.reject("ERROR", "Yttrium getERC20Balance Error:" + e.message, e)
+      }
+    }
+  }
+
+  @ReactMethod
+  override fun estimateFees(params: ReadableMap, promise: Promise){
+    System.out.println("estimateFees: Hello from YttriumModule address")
+
+    GlobalScope.launch(Dispatchers.Main) {
+      try {
+
+        val projectId = params.getString("projectId") as String
+        val chainId = params.getString("chainId") as String
+        val client = ChainAbstractionClient(projectId)
+        val result = client.estimateFees(chainId)
+        val gson = Gson()
+        val resultJson: JsonElement = gson.toJsonTree(result)
+        promise.resolve(gson.toJson(resultJson))
+      } catch (e: Exception) {
+        // In case of an error, reject the promise
+        promise.reject("ERROR", "Yttrium estimateFees Error:" + e.message, e)
+      }
+    }
+  }
+
   companion object {
     const val NAME = "RNWalletConnectModule"
   }
